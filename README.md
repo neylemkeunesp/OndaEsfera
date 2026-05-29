@@ -2,6 +2,8 @@
 
 Simulação interativa da **equação da onda em uma superfície esférica**, em tempo real no navegador, usando [Three.js](https://threejs.org/). Clique na esfera para excitar ondas que se propagam continuamente pela superfície — e, na versão completa, ouça a própria membrana vibrar.
 
+![Ondas propagando na superfície da esfera](screenshot.png)
+
 ## Demonstração
 
 Os dois aplicativos são páginas HTML únicas, sem etapa de build. Sirva a pasta por HTTP (o áudio via `AudioWorklet` exige `http(s)`, não funciona em `file://`):
