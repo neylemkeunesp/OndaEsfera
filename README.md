@@ -59,4 +59,4 @@ Mapeamento dos controles: velocidade → tom (ω₁), amortecimento → decaimen
 
 ## Licença
 
-Sem licença definida. Adicione uma se pretende permitir reuso.
+[MIT](LICENSE) © 2026 Ney Lemke
