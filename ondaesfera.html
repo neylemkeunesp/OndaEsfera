@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Tambor Esférico</title>
+<style>
+  body { margin:0; overflow:hidden; background:#000; }
+  #info { position:fixed; top:10px; left:10px; color:#fff; font-family:sans-serif }
+</style>
+</head>
+<body>
+<div id="info">Clique na esfera para excitá-la</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
+<script>
+// Parâmetros numéricos
+const c      = 1.0;       // velocidade de propagação (arbitrária)
+const dt     = 0.015;     // passo de tempo
+const damp   = 0.999;     // amortecimento global leve
+
+// Cena Three.js básica
+const scene   = new THREE.Scene();
+const camera  = new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,0,3);
+const renderer= new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight); document.body.appendChild(renderer.domElement);
+window.addEventListener('resize',()=>renderer.setSize(innerWidth,innerHeight),false);
+
+// Geometria da esfera
+const rings = 48, segments = 96, radius = 1;
+const geom  = new THREE.SphereGeometry(radius,rings,segments);
+geom.computeVertexNormals();          // garante arrays de vértices
+const n     = geom.attributes.position.count;
+
+// buffers de deslocamento
+let u      = new Float32Array(n).fill(0);
+let uPrev  = new Float32Array(n).fill(0);
+let uNext  = new Float32Array(n).fill(0);
+
+// A SphereGeometry duplica vértices na costura de longitude e nos polos.
+// Mapeamos cada vértice ao "representante" (1º vértice naquela posição) para
+// que a onda atravesse a costura continuamente em vez de bater numa emenda.
+const pos0 = geom.attributes.position.array;
+const keyToRep = new Map();
+const rep = new Int32Array(n);
+for (let i=0;i<n;i++){
+  const key = pos0[3*i].toFixed(4)+','+pos0[3*i+1].toFixed(4)+','+pos0[3*i+2].toFixed(4);
+  if (!keyToRep.has(key)) keyToRep.set(key,i);
+  rep[i] = keyToRep.get(key);
+}
+
+// pré-compute lista de vizinhos (em espaço de representantes) para o laplaciano
+const neighbors = Array.from({length:n},()=>new Set());
+for (let i=0;i<geom.index.count;i+=3){
+  const a = rep[geom.index.array[i]],
+        b = rep[geom.index.array[i+1]],
+        c_ = rep[geom.index.array[i+2]];
+  neighbors[a].add(b).add(c_);
+  neighbors[b].add(a).add(c_);
+  neighbors[c_].add(a).add(b);
+}
+// remove eventual auto-referência (triângulos degenerados na costura)
+for (let i=0;i<n;i++) neighbors[i].delete(i);
+const neighArr = neighbors.map(s=>Array.from(s));
+
+// adiciona atributo de cor
+const colors = new Float32Array(n*3);
+geom.setAttribute('color',new THREE.BufferAttribute(colors,3));
+const mat = new THREE.MeshPhongMaterial({
+  vertexColors:true, shininess: 30, side:THREE.DoubleSide
+});
+const sphere = new THREE.Mesh(geom,mat);
+scene.add(sphere);
+
+// luzes
+scene.add(new THREE.AmbientLight(0x444444));
+const light = new THREE.DirectionalLight(0xffffff,0.8);
+light.position.set(5,5,5); scene.add(light);
+
+// Funções auxiliares
+function laplacian(idx){
+  const arr = neighArr[rep[idx]];   // vizinhos do representante (atravessa a costura)
+  if (!arr.length) return 0;
+  let sum = 0;
+  for (let j=0;j<arr.length;j++) sum += u[arr[j]];
+  return (sum/arr.length) - u[idx];
+}
+
+function updateColors(){
+  for (let i=0;i<n;i++){
+    const val = u[i];                     // deslocamento atual
+    const r = Math.max(0,  val);
+    const b = Math.max(0, -val);
+    colors[3*i  ] = r;                   // vermelho
+    colors[3*i+1] = 1.0 - Math.abs(val); // verde (para branco em 0)
+    colors[3*i+2] = b;                   // azul
+  }
+  geom.attributes.color.needsUpdate = true;
+}
+
+// Animação principal
+function step(){
+  for (let i=0;i<n;i++){
+    const lap = laplacian(i);
+    uNext[i]  = (2*u[i] - uPrev[i] + (c*dt)**2 * lap) * damp;
+  }
+  [uPrev,u,uNext] = [u,uNext,uPrev];   // troca de buffers
+  // atualiza posições de vértice
+  const pos = geom.attributes.position;
+  for (let i=0;i<n;i++){
+    const k = u[i];
+    pos.array[3*i  ] = (1+k)*geom.parameters.radius *
+                        geom.attributes.normal.array[3*i  ];
+    pos.array[3*i+1] = (1+k)*geom.parameters.radius *
+                        geom.attributes.normal.array[3*i+1];
+    pos.array[3*i+2] = (1+k)*geom.parameters.radius *
+                        geom.attributes.normal.array[3*i+2];
+  }
+  pos.needsUpdate = true;
+  updateColors();
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  step();
+  sphere.rotation.y += 0.002;
+  renderer.render(scene,camera);
+}
+animate();
+
+// Interação via mouse
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function onClick(event){
+  // normaliza coordenadas do mouse
+  mouse.x = (event.clientX/innerWidth)*2 - 1;
+  mouse.y = -(event.clientY/innerHeight)*2 + 1;
+  raycaster.setFromCamera(mouse,camera);
+  const intersects = raycaster.intersectObject(sphere);
+  if (intersects.length){
+    const p = intersects[0].point.clone().normalize(); // vetor normal
+    const sigma = 0.15;                                // largura do "tapa"
+    for (let i=0;i<n;i++){
+      const v = new THREE.Vector3(
+         geom.attributes.normal.array[3*i],
+         geom.attributes.normal.array[3*i+1],
+         geom.attributes.normal.array[3*i+2]);
+      const ang = v.dot(p);                // cos do ângulo entre vetores
+      const d2  = 2*(1-ang);               // distância² ~ lei dos cossenos
+      u[i] += Math.exp(-d2/(2*sigma*sigma))*0.5; // impulso gaussiano
+    }
+  }
+}
+window.addEventListener('pointerdown',onClick,false);
+</script>
+</body>
+</html>

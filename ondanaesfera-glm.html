@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambor Esférico - Simulação da Equação da Onda</title>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 300px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .description {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #b0b0b0;
+            margin-bottom: 15px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .value-display {
+            font-size: 14px;
+            color: #00ffff;
+            text-align: right;
+        }
+
+        .button {
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            background: rgba(20, 20, 30, 0.8);
+            padding: 15px 30px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .instructions-text {
+            font-size: 16px;
+            color: #b0b0b0;
+        }
+
+        .highlight {
+            color: #00ffff;
+            font-weight: bold;
+        }
+
+        #color-legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .legend-title {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .color-bar {
+            width: 200px;
+            height: 20px;
+            background: linear-gradient(to right, 
+                #0000ff 0%, 
+                #00ffff 25%, 
+                #00ff00 50%, 
+                #ffff00 75%, 
+                #ff0000 100%);
+            border-radius: 10px;
+            margin-bottom: 5px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div id="info-panel">
+            <h1>Tambor Esférico</h1>
+            <p class="description">
+                Simulação da equação da onda em uma superfície esférica. 
+                Clique na esfera para criar ondas!
+            </p>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label for="velocity">Velocidade da Onda</label>
+                    <input type="range" id="velocity" min="0.1" max="2" step="0.1" value="0.5">
+                    <span class="value-display" id="velocity-value">0.5</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="damping">Amortecimento</label>
+                    <input type="range" id="damping" min="0.9" max="1" step="0.001" value="0.995">
+                    <span class="value-display" id="damping-value">0.995</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="force">Força do Impacto</label>
+                    <input type="range" id="force" min="0.5" max="3" step="0.1" value="1.5">
+                    <span class="value-display" id="force-value">1.5</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="volume">Volume do Som</label>
+                    <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5">
+                    <span class="value-display" id="volume-value">0.5</span>
+                </div>
+
+                <button class="button" id="reset-btn">Reiniciar</button>
+            </div>
+        </div>
+        
+        <div id="color-legend">
+            <div class="legend-title">Intensidade da Onda</div>
+            <div class="color-bar"></div>
+            <div class="legend-labels">
+                <span>Negativo</span>
+                <span>Zero</span>
+                <span>Positivo</span>
+            </div>
+        </div>
+        
+        <div id="instructions">
+            <p class="instructions-text">
+                <span class="highlight">Clique</span> para tocar o tambor | 
+                <span class="highlight">Arraste</span> para rotacionar | 
+                <span class="highlight">Rolar</span> para zoom
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Configurações da cena
+        let scene, camera, renderer, controls;
+        let sphere, sphereGeometry;
+        let raycaster, mouse;
+        
+        // Parâmetros da simulação
+        let waveVelocity = 0.5;
+        let damping = 0.995;
+        let impactForce = 1.5;
+        let radius = 2;
+        
+        // Arrays para armazenar os dados da onda
+        let u, u_prev, u_next; // Displacement atual, anterior e próximo
+        let vertices;
+        let neighbors; // lista de vizinhos pré-computada (posições da CPU não mudam)
+        
+        // Parâmetros de tempo
+        const dt = 0.016; // 60 FPS
+
+        // ----------------------------------------------------------------
+        // ÁUDIO — modelagem física da membrana esférica (modos normais)
+        // ----------------------------------------------------------------
+        // O som NÃO é um efeito disparado na batida: é a própria membrana
+        // vibrando. Integramos, na taxa de áudio (~44,1 kHz), as equações dos
+        // modos normais da esfera. Cada modo l é um oscilador harmônico
+        // amortecido
+        //        q'' + 2γ q' + ω_l² q = 0
+        // com ω_l = ω1·sqrt(l(l+1)/2) — as autofrequências do operador de
+        // Laplace-Beltrami na esfera (parciais INARMÔNICOS 1 : 1.73 : 2.45 :
+        // 3.16 : ..., o timbre de membrana). Cada grau l carrega 2l+1 modos
+        // degenerados que imperfeições reais desafinam levemente; por isso usa-
+        // mos sub-osciladores por grau (ver MembraneEngine) p/ obter batimentos
+        // e "shimmer". A amostra de áudio é a soma das deslocações modais q_l(t):
+        // literalmente a membrana oscilando e decaindo. Bater de novo injeta
+        // velocidade nos osciladores que já tocam → superposição e batimentos
+        // reais, como num tambor.
+        //
+        // Mapeamento dos controles: velocidade->tom (ω1), amortecimento->γ
+        // (tempo de ressonância), força->energia injetada na batida.
+        let audioCtx = null;        // criado no 1º clique (exige gesto do usuário)
+        let masterGain = null;      // ganho mestre (slider de volume)
+        let membraneNode = null;    // AudioWorkletNode (caminho preferido, via http)
+        let membraneEngine = null;  // motor no fallback ScriptProcessor (via file://)
+        let scriptNode = null;      // ref. global p/ o ScriptProcessor NÃO ser coletado pelo GC
+        let audioInitStarted = false;
+        let soundVolume = 0.5;
+
+        // Motor do DSP — FONTE ÚNICA da física. Usado tanto na thread de áudio
+        // (dentro do worklet, abaixo) quanto no fallback ScriptProcessor.
+        // Melhorias de timbre sobre o modelo modal puro:
+        //  • DEGENERESCÊNCIA: cada grau l da esfera tem 2l+1 modos de mesma
+        //    frequência; imperfeições reais quebram essa simetria e os
+        //    sub-modos batem entre si. Usamos SPLIT sub-osciladores por grau,
+        //    levemente desafinados → batimentos lentos e "shimmer" vivo, em vez
+        //    de um tom estático e sintético.
+        //  • DUREZA DA BATIDA: golpes fortes excitam mais os agudos (espectro
+        //    mais plano), golpes fracos soam abafados — a força vira TIMBRE, não
+        //    só volume.
+        //  • GLIDE DE TENSÃO: em grande amplitude a pele estica, sobe o tom, e
+        //    relaxa ao decair (o "doom" de tímpano/tom). Não-linearidade leve.
+        //  • SAÍDA: bloqueio de DC (os chutes de sinal aleatório deixam offset)
+        //    + saturação suave (tanh) p/ corpo e calor nas batidas fortes.
+        class MembraneEngine {
+            constructor(numDegrees, sampleRate) {
+                this.sr = sampleRate;
+                this.D = numDegrees;           // graus l = 1..D
+                this.SPLIT = 2;                // sub-modos por grau (degenerescência)
+                this.N = this.D * this.SPLIT;  // total de osciladores
+                this.omega = new Float32Array(this.N); // freq. angular nominal
+                this.gamma = new Float32Array(this.N); // amortecimento
+                this.q = new Float32Array(this.N);     // deslocamento modal
+                this.v = new Float32Array(this.N);     // velocidade modal
+                this.w = new Float32Array(this.N);     // peso de excitação/mistura
+                this.detune = new Float32Array(this.N);// desafinação fixa do sub-modo
+                for (let d = 0; d < this.D; d++) {
+                    // espalhamento cresce com o grau → agudos batem mais rápido
+                    const spread = 0.008 * (1 + 0.15 * d);
+                    for (let s = 0; s < this.SPLIT; s++) {
+                        const m = d * this.SPLIT + s;
+                        this.detune[m] = 1 + ((s + 0.5) / this.SPLIT - 0.5) * spread;
+                        // sub-modos dividem a energia do grau; agudos mais fracos
+                        this.w[m] = (1 / this.SPLIT) / Math.pow(d + 1, 0.8);
+                    }
+                }
+                this.baseFreq = 110;
+                this.noiseEnv = 0;        // envelope do transiente do "tapa" na pele
+                this.noiseLP = 0;
+                this.noiseTilt = 0.5;     // brilho do transiente (vem da dureza)
+                this.env = 0;             // envelope de amplitude p/ o glide
+                this.dcX = 0; this.dcY = 0; // estado do bloqueador de DC
+                this.setParams(110, 6);
+            }
+            setParams(baseFreq, gamma) {
+                this.baseFreq = baseFreq;
+                for (let d = 0; d < this.D; d++) {
+                    const l = d + 1;
+                    const f = baseFreq * Math.sqrt((l * (l + 1)) / 2);
+                    for (let s = 0; s < this.SPLIT; s++) {
+                        const m = d * this.SPLIT + s;
+                        this.omega[m] = 2 * Math.PI * f * this.detune[m];
+                        // modos agudos decaem mais rápido (como numa membrana real)
+                        this.gamma[m] = gamma * (1 + 0.18 * d);
+                    }
+                }
+            }
+            strike(strength) {
+                const amp = 0.22 * strength;
+                // dureza 0..1: batida forte = mais brilho (espectro mais plano)
+                const hard = Math.min(1, strength / 3);
+                this.noiseTilt = hard;
+                for (let d = 0; d < this.D; d++) {
+                    // inclinação espectral: agudos só aparecem na batida dura
+                    const tilt = Math.exp(-d * (1 - hard) * 0.35);
+                    for (let s = 0; s < this.SPLIT; s++) {
+                        const m = d * this.SPLIT + s;
+                        // chute proporcional a ω => amplitude de pico ~ amp*w*tilt,
+                        // independente do tom (loudness previsível)
+                        const sign = Math.random() < 0.5 ? -1 : 1;
+                        this.v[m] += sign * this.omega[m] * amp * this.w[m] * tilt;
+                    }
+                }
+                this.noiseEnv = 0.6 * strength;        // transiente percussivo
+            }
+            render(out) {
+                const dt = 1 / this.sr;
+                const nDecay = Math.exp(-dt * 1200);   // ruído some em poucos ms
+                const envCoef = dt / 0.02;             // suavização ~20 ms do glide
+                const noiseCut = this.baseFreq * (2 + 4 * this.noiseTilt);
+                const lpA = Math.exp(-2 * Math.PI * noiseCut / this.sr);
+                for (let s = 0; s < out.length; s++) {
+                    // glide de tensão: amplitude alta sobe o tom; relaxa ao decair
+                    const tension = 1 + 0.35 * this.env;
+                    let acc = 0;
+                    for (let m = 0; m < this.N; m++) {
+                        const w = this.omega[m] * tension;
+                        // integração semi-implícita (simplética) do oscilador
+                        const a = -w * w * this.q[m] - 2 * this.gamma[m] * this.v[m];
+                        this.v[m] += a * dt;
+                        this.q[m] += this.v[m] * dt;
+                        acc += this.q[m];
+                    }
+                    // segue o envelope de amplitude (alimenta o glide de tensão)
+                    this.env += (Math.abs(acc) - this.env) * envCoef;
+                    // transiente de ruído passa-baixa (impacto na pele)
+                    const n = (Math.random() * 2 - 1) * this.noiseEnv;
+                    this.noiseLP = this.noiseLP * lpA + n * (1 - lpA);
+                    this.noiseEnv *= nDecay;
+                    // bloqueio de DC (passa-alta ~7 Hz) + saturação suave (tanh)
+                    const x = acc * 0.35 + this.noiseLP * 0.8;
+                    const y = x - this.dcX + 0.999 * this.dcY;
+                    this.dcX = x; this.dcY = y;
+                    out[s] = Math.tanh(y * 1.1) * 0.8;
+                }
+            }
+        }
+
+        // Worklet gerado a partir do MESMO MembraneEngine (sem duplicar a
+        // matemática). Carregado via Blob p/ manter o app em arquivo único.
+        // Só funciona sob http(s); em file:// o blob é bloqueado e usamos o
+        // fallback ScriptProcessor.
+        const membraneWorkletCode = MembraneEngine.toString() + `
+            class MembraneProcessor extends AudioWorkletProcessor {
+                constructor(options) {
+                    super();
+                    const o = (options && options.processorOptions) || {};
+                    this.engine = new MembraneEngine(o.numModes || 16, sampleRate);
+                    this.port.onmessage = (e) => {
+                        const d = e.data;
+                        if (d.type === 'params') this.engine.setParams(d.baseFreq, d.gamma);
+                        else if (d.type === 'strike') this.engine.strike(d.strength);
+                    };
+                }
+                process(inputs, outputs) {
+                    const out = outputs[0][0];
+                    if (out) this.engine.render(out);
+                    return true;
+                }
+            }
+            registerProcessor('membrane-processor', MembraneProcessor);
+        `;
+
+        async function initAudio() {
+            if (audioInitStarted) return;
+            audioInitStarted = true;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return; // navegador sem Web Audio
+            audioCtx = new AC();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = soundVolume;
+            // limitador leve evita estouro em batidas fortes/sobrepostas
+            const comp = audioCtx.createDynamicsCompressor();
+            masterGain.connect(comp);
+            comp.connect(audioCtx.destination);
+
+            let useWorklet = false;
+            if (audioCtx.audioWorklet) {
+                try {
+                    const blob = new Blob([membraneWorkletCode], { type: 'application/javascript' });
+                    const url = URL.createObjectURL(blob);
+                    await audioCtx.audioWorklet.addModule(url);
+                    URL.revokeObjectURL(url);
+                    membraneNode = new AudioWorkletNode(audioCtx, 'membrane-processor', {
+                        processorOptions: { numModes: 16 }
+                    });
+                    membraneNode.connect(masterGain);
+                    useWorklet = true;
+                } catch (err) {
+                    // file:// trata blob como origin nulo e bloqueia o módulo
+                    console.warn('AudioWorklet indisponível (abra via http p/ melhor latência); ' +
+                                 'usando ScriptProcessor:', err.message);
+                }
+            }
+            if (!useWorklet) {
+                // Fallback: mesmo motor, na thread principal. Funciona em file://.
+                membraneEngine = new MembraneEngine(16, audioCtx.sampleRate);
+                // 1 canal de entrada (não usado) garante o disparo de
+                // onaudioprocess em todos os navegadores; saída mono gerada.
+                // IMPORTANTE: guardar em scriptNode (global) — sem uma
+                // referência viva, o ScriptProcessorNode é coletado pelo GC
+                // e o áudio para de tocar.
+                scriptNode = audioCtx.createScriptProcessor(512, 1, 1);
+                scriptNode.onaudioprocess = (e) => membraneEngine.render(e.outputBuffer.getChannelData(0));
+                scriptNode.connect(masterGain);
+            }
+            updateAudioParams();
+        }
+
+        // Recalcula tom (ω1) e amortecimento (γ) a partir dos sliders.
+        function updateAudioParams() {
+            const f1 = 110 * (waveVelocity / 0.5);     // Hz do modo fundamental
+            const t = (damping - 0.9) / 0.1;           // 0 (seco) .. 1 (ressoante)
+            const gamma = 2 + (1 - t) * 33;            // γ alto = decai rápido
+            if (membraneNode) membraneNode.port.postMessage({ type: 'params', baseFreq: f1, gamma: gamma });
+            if (membraneEngine) membraneEngine.setParams(f1, gamma);
+        }
+
+        // Excita a membrana (chamado quando a batida acerta a esfera).
+        function playDrumHit(strength) {
+            if (soundVolume <= 0) return;
+            if (membraneNode) membraneNode.port.postMessage({ type: 'strike', strength: strength });
+            if (membraneEngine) membraneEngine.strike(strength);
+        }
+
+        function init() {
+            // Configuração da cena
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x000000, 5, 15);
+            
+            // Câmera
+            camera = new THREE.PerspectiveCamera(
+                75, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                1000
+            );
+            camera.position.z = 6;
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Controles
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 3;
+            controls.maxDistance = 10;
+            
+            // Raycaster para interação
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Criar a esfera
+            createSphere();
+            
+            // Adicionar iluminação
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            const pointLight = new THREE.PointLight(0x00ffff, 0.5);
+            pointLight.position.set(-5, 0, 0);
+            scene.add(pointLight);
+            
+            // Configurar eventos
+            setupEventListeners();
+            
+            // Iniciar animação
+            animate();
+        }
+        
+        function createSphere() {
+            const resolution = 64;
+            sphereGeometry = new THREE.SphereGeometry(radius, resolution, resolution);
+            
+            // Inicializar arrays da onda
+            vertices = sphereGeometry.attributes.position.array;
+            const numVertices = vertices.length / 3;
+            
+            u = new Float32Array(numVertices);
+            u_prev = new Float32Array(numVertices);
+            u_next = new Float32Array(numVertices);
+
+            // Pré-computar a lista de vizinhos UMA ÚNICA VEZ.
+            // O deslocamento acontece só no vertex shader (GPU), então as
+            // posições da CPU em `vertices` nunca mudam — a vizinhança é
+            // constante e não precisa ser recalculada a cada frame.
+            // Como agrupa por distância, vértices duplicados na costura/polos
+            // da SphereGeometry ficam implicitamente conectados.
+            neighbors = new Array(numVertices);
+            for (let i = 0; i < numVertices; i++) {
+                const i3 = i * 3;
+                const xi = vertices[i3] / radius;
+                const yi = vertices[i3 + 1] / radius;
+                const zi = vertices[i3 + 2] / radius;
+                const list = [];
+                for (let j = 0; j < numVertices; j++) {
+                    if (i === j) continue;
+                    const j3 = j * 3;
+                    const dx = xi - vertices[j3] / radius;
+                    const dy = yi - vertices[j3 + 1] / radius;
+                    const dz = zi - vertices[j3 + 2] / radius;
+                    const dist2 = dx * dx + dy * dy + dz * dz;
+                    if (dist2 < 0.1 && dist2 > 0) list.push(j);
+                }
+                neighbors[i] = list;
+            }
+
+            // Criar atributo de deslocamento para o shader
+            const displacementAttribute = new THREE.BufferAttribute(u, 1);
+            sphereGeometry.setAttribute('displacement', displacementAttribute);
+            
+            // Material com shader personalizado
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 }
+                },
+                vertexShader: `
+                    attribute float displacement;
+                    varying vec3 vPosition;
+                    varying float vDisplacement;
+                    
+                    void main() {
+                        vPosition = position;
+                        vDisplacement = displacement;
+                        
+                        vec3 newPosition = position + normalize(position) * vDisplacement * 0.1;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vPosition;
+                    varying float vDisplacement;
+                    uniform float time;
+                    
+                    void main() {
+                        float intensity = vDisplacement;
+                        
+                        // Mapear a intensidade para cores
+                        vec3 color;
+                        if (intensity < 0.0) {
+                            color = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 1.0), intensity + 1.0);
+                        } else {
+                            color = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 0.0, 0.0), intensity);
+                        }
+                        
+                        // Adicionar brilho
+                        float brightness = abs(intensity) * 2.0;
+                        color += brightness * 0.3;
+                        
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `,
+                wireframe: false
+            });
+            
+            sphere = new THREE.Mesh(sphereGeometry, material);
+            scene.add(sphere);
+        }
+        
+        function updateWave() {
+            const numVertices = vertices.length / 3;
+            const c2 = waveVelocity * waveVelocity;
+            const dt2 = dt * dt;
+            
+            // Calcular o laplaciano (média dos vizinhos menos o próprio valor)
+            // e atualizar a onda. A média é numericamente estável; a versão
+            // antiga dividia por dist2 e amplificava enormemente perto dos
+            // polos, onde os vértices ficam amontoados.
+            for (let i = 0; i < numVertices; i++) {
+                const nb = neighbors[i];
+                let laplacian = 0;
+                if (nb.length > 0) {
+                    let sum = 0;
+                    for (let k = 0; k < nb.length; k++) sum += u[nb[k]];
+                    laplacian = sum / nb.length - u[i];
+                }
+
+                // Equação da onda discretizada
+                u_next[i] = (2 * u[i] - u_prev[i] + c2 * dt2 * laplacian) * damping;
+            }
+            
+            // Atualizar arrays
+            const temp = u_prev;
+            u_prev = u;
+            u = u_next;
+            u_next = temp;
+            
+            // Atualizar o atributo de deslocamento
+            sphere.geometry.attributes.displacement.array = u;
+            sphere.geometry.attributes.displacement.needsUpdate = true;
+        }
+        
+        function addImpulse() {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(sphere);
+            
+            if (intersects.length > 0) {
+                const intersection = intersects[0];
+                const impactPoint = intersection.point.clone().normalize();
+                const numVertices = vertices.length / 3;
+                
+                // Adicionar energia em um raio ao redor do ponto de impacto
+                for (let i = 0; i < numVertices; i++) {
+                    const i3 = i * 3;
+                    const vertex = new THREE.Vector3(
+                        vertices[i3], 
+                        vertices[i3 + 1], 
+                        vertices[i3 + 2]
+                    ).normalize();
+                    
+                    const distance = vertex.distanceTo(impactPoint);
+                    // Gaussian impulse
+                    const impulse = impactForce * Math.exp(-distance * distance * 20);
+                    u[i] += impulse;
+                }
+
+                // Tocar a batida do tambor
+                playDrumHit(impactForce);
+            }
+        }
+        
+        function setupEventListeners() {
+            // Eventos do mouse
+            renderer.domElement.addEventListener('click', onMouseClick);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            
+            // Eventos da UI
+            const velocitySlider = document.getElementById('velocity');
+            const dampingSlider = document.getElementById('damping');
+            const forceSlider = document.getElementById('force');
+            const volumeSlider = document.getElementById('volume');
+            const resetButton = document.getElementById('reset-btn');
+            
+            velocitySlider.addEventListener('input', (e) => {
+                waveVelocity = parseFloat(e.target.value);
+                document.getElementById('velocity-value').textContent = waveVelocity.toFixed(1);
+                updateAudioParams(); // tom acompanha a velocidade da onda
+            });
+
+            dampingSlider.addEventListener('input', (e) => {
+                damping = parseFloat(e.target.value);
+                document.getElementById('damping-value').textContent = damping.toFixed(3);
+                updateAudioParams(); // ressonância acompanha o amortecimento
+            });
+            
+            forceSlider.addEventListener('input', (e) => {
+                impactForce = parseFloat(e.target.value);
+                document.getElementById('force-value').textContent = impactForce.toFixed(1);
+            });
+
+            volumeSlider.addEventListener('input', (e) => {
+                soundVolume = parseFloat(e.target.value);
+                document.getElementById('volume-value').textContent = soundVolume.toFixed(2);
+                // rampa curta evita "zíper" no volume
+                if (masterGain) masterGain.gain.setTargetAtTime(soundVolume, audioCtx.currentTime, 0.02);
+            });
+
+            resetButton.addEventListener('click', () => {
+                // Resetar a onda
+                u.fill(0);
+                u_prev.fill(0);
+                u_next.fill(0);
+            });
+            
+            // Resize
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        async function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // O áudio só pode iniciar a partir de um gesto do usuário.
+            // Aguardamos para que a 1ª batida já saia com som.
+            await initAudio();
+            if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+
+            addImpulse();
+        }
+        
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Atualizar a simulação da onda
+            updateWave();
+            
+            // Atualizar tempo para o shader
+            sphere.material.uniforms.time.value += dt;
+            
+            // Atualizar controles
+            controls.update();
+            
+            // Renderizar
+            renderer.render(scene, camera);
+        }
+        
+        // Iniciar a aplicação
+        init();
+        
+        // Adicionar um pequeno pulso inicial para demonstração
+        setTimeout(() => {
+            u[0] = 1.0;
+            u[100] = -0.8;
+            u[200] = 0.6;
+        }, 500);
+    </script>
+</body>
+</html>
